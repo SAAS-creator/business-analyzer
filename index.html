@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Analyzer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #1a1a2e; }
+.container { max-width: 1120px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 24px; }
+header h1 { font-size: 26px; }
+header p { color: #666; margin-top: 4px; font-size: 14px; }
+
+.card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.card h2 { font-size: 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+
+.upload-area { border: 2px dashed #ccc; border-radius: 10px; padding: 36px; text-align: center; cursor: pointer; transition: 0.2s; }
+.upload-area:hover { border-color: #2563eb; background: #f8faff; }
+.upload-area.dragover { border-color: #2563eb; background: #eef4ff; }
+.upload-area input { display: none; }
+
+.col-tag { display: inline-block; padding: 3px 10px; border-radius: 5px; font-size: 12px; font-weight: 500; margin: 2px; }
+.col-tag.found { background: #dcfce7; color: #16a34a; }
+.col-tag.missing { background: #fee2e2; color: #dc2626; }
+
+.mapping-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+@media (max-width:700px) { .mapping-grid { grid-template-columns: 1fr; } }
+.mapping-item { display: flex; align-items: center; gap: 8px; }
+.mapping-item label { font-size: 13px; font-weight: 600; min-width: 110px; }
+.mapping-item select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 13px; flex: 1; }
+.mapping-item .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.mapping-item .status-dot.ok { background: #16a34a; }
+.mapping-item .status-dot.miss { background: #dc2626; }
+
+.btn { border: none; padding: 11px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-success { background: #16a34a; color: white; }
+.btn-success:hover { background: #15803d; }
+.btn-outline { background: transparent; border: 2px solid #2563eb; color: #2563eb; }
+.btn-outline:hover { background: #eef4ff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Summary Sections ─── */
+.section-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+.kpi-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi-mini { background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #e5e7eb; }
+.kpi-mini .lbl { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-mini .val { font-size: 20px; font-weight: 700; margin-top: 2px; }
+.not-avail { padding: 14px; background: #fef3c7; border-radius: 8px; font-size: 13px; color: #92400e; text-align: center; }
+
+.hidden { display: none !important; }
+.chart-box { position: relative; height: 260px; }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width:700px) { .chart-grid { grid-template-columns: 1fr; } }
+
+.insight-list { list-style: none; }
+.insight-list li { padding: 10px 14px; margin-bottom: 8px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #2563eb; font-size: 14px; }
+.insight-list li.green { border-left-color: #16a34a; }
+.insight-list li.red { border-left-color: #dc2626; }
+.insight-list li.amber { border-left-color: #f59e0b; }
+
+.product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.product-item { background: #f9fafb; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb; }
+.product-item .rank { font-size: 11px; color: #888; }
+.product-item .pname { font-weight: 600; margin: 3px 0; font-size: 14px; }
+.product-item .stat { font-size: 12px; color: #555; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; font-weight: 600; }
+tr:hover { background: #f8faff; }
+.table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+
+.action-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+.sep { border: 0; border-top: 2px solid #e5e7eb; margin: 18px 0; }
+.loading { text-align: center; padding: 40px; color: #888; }
+
+.credit-table { font-size: 13px; }
+.credit-table td, .credit-table th { padding: 6px 10px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1> Business Analyzer</h1>
+    <p>Upload monthly sheet &rarr; get full report &rarr; deep analysis</p>
+  </header>
+
+  <!-- ─── UPLOAD ─── -->
+  <div class="card">
+    <h2>1. Upload CSV</h2>
+    <div class="upload-area" id="dropArea">
+      <div style="font-size:36px;color:#999;">+</div>
+      <p style="margin:6px 0;"><strong>Click or drag &amp; drop</strong> your monthly CSV sheet</p>
+      <p style="font-size:12px;color:#aaa;">Accepts columns: Product, Sales, Cost, Quantity, Cash In, Cash Out, Customer Name, Type, Date</p>
+      <input type="file" id="csvInput" accept=".csv">
+    </div>
+  </div>
+
+  <!-- ─── MAPPING ─── -->
+  <div class="card hidden" id="mappingCard">
+    <h2>2. Map Columns</h2>
+    <p style="font-size:13px;color:#555;margin-bottom:14px;">
+      <span class="col-tag found">&#10003; Found</span>
+      <span class="col-tag missing">&#10007; Missing (skip)</span>
+      &mdash; Required fields marked with * will auto-calculate if found.
+    </p>
+    <div class="mapping-grid" id="mappingGrid"></div>
+    <div id="missingAlert" class="hidden" style="margin-top:12px;padding:12px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;"></div>
+    <div class="action-bar">
+      <button class="btn btn-success" id="calculateBtn"> Calculate Summary</button>
+    </div>
+  </div>
+
+  <!-- ─── SUMMARY REPORT ─── -->
+  <div class="hidden" id="summarySection">
+
+    <!-- Gross Sales -->
+    <div class="card" id="secSales">
+      <h2> Total (Gross) Sales</h2>
+      <div id="salesContent"></div>
+    </div>
+
+    <!-- Expenses -->
+    <div class="card" id="secExpenses">
+      <h2> Total Expenses</h2>
+      <div id="expensesContent"></div>
+    </div>
+
+    <!-- Net Profit -->
+    <div class="card" id="secProfit">
+      <h2> Net Profit</h2>
+      <div id="profitContent"></div>
+    </div>
+
+    <!-- Cost Per Unit -->
+    <div class="card" id="secCPU">
+      <h2> Product/Service Cost Per Unit</h2>
+      <div id="cpuContent"></div>
+    </div>
+
+    <!-- Cash Flow -->
+    <div class="card" id="secCash">
+      <h2> Cash Flow</h2>
+      <div id="cashContent"></div>
+    </div>
+    <!-- Credit / Debt -->
+
+    <div class="card" id="secCredit">
+      <h2> Credit / Debt (Receivables & Payables)</h2>
+      <div id="creditContent"></div>
+    </div>
+
+    <!-- Top & Low -->
+    <div class="card" id="secTopLow">
+      <h2> Top & Low Selling Items</h2>
+      <div id="topLowContent"></div>
+    </div>
+
+    <hr class="sep">
+
+    <div style="text-align:center;">
+      <button class="btn btn-primary" id="analyzeDeepBtn" style="font-size:16px;padding:14px 40px;"> Analyze Deeply &rarr;</button>
+      <p style="margin-top:6px;font-size:12px;color:#888;">Charts, recommendations, health score &amp; more</p>
+    </div>
+  </div>
+
+  <!-- ─── DEEP ANALYSIS ─── -->
+  <div class="hidden" id="analysisSection">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 style="margin:0;"> Deep Analysis</h2>
+        <button class="btn btn-outline" id="backToSummaryBtn">&larr; Back to Summary</button>
+      </div>
+
+      <h3 style="font-size:15px;margin-bottom:8px;">Health Score</h3>
+      <div id="healthScoreArea" style="margin-bottom:16px;"></div>
+
+      <div class="chart-grid">
+        <div><h3 style="font-size:14px;margin-bottom:6px;">Revenue vs Cost vs Profit</h3><div class="chart-box"><canvas id="barChart"></canvas></div></div>
+        <div><h3 style="font-size:14px;margin-bottom:6px;">Sales Trend</h3><div class="chart-box"><canvas id="trendChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2> Recommendations &amp; Insights</h2>
+      <div id="analysisInsights"></div>
+    </div>
+
+    <div class="card">
+      <h2> Product Breakdown</h2>
+      <div id="analysisProducts"></div>
+    </div>
+
+    <div class="card">
+      <h2> Loss Analysis</h2>
+      <div id="analysisLoss"></div>
+    </div>
+
+    <div class="card">
+      <h2> Uploaded Data</h2>
+      <div class="table-wrap"><table id="dataTable"></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let rawRows = [], headers = [];
+let colMap = {}; // final selected column indices per key
+let colStatus = {}; // { key: 'found' | 'missing' | 'selected' }
+
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toLocaleString('en', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+function normalizeProduct(name) {
+  return name.trim().toLowerCase().replace(/[-_\/]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function warnBlock(text) {
+  return '<div style="padding:10px;margin-top:8px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;display:flex;align-items:center;gap:6px;">' + text + '</div>';
+}
+
+function countDuplicates(rows) {
+  const seen = new Set();
+  let dupCount = 0;
+  rows.forEach(r => {
+    const key = r.join('|');
+    if (seen.has(key)) dupCount++;
+    seen.add(key);
+  });
+  return dupCount;
+}
+
+const FIELD_DEFS = [
+  { key: 'product',  label: 'Product / Item',        required: false, keywords: ['product','item','service','name','article','category'] },
+  { key: 'sales',    label: 'Sales / Revenue',        required: false, keywords: ['sales','revenue','income','amount','gross','sale','price'] },
+  { key: 'cost',     label: 'Cost / Expense',         required: false, keywords: ['cost','expense','cogs','spend','paid','exp','outflow'] },
+  { key: 'quantity', label: 'Quantity / Units',       required: false, keywords: ['qty','quantity','units','pcs','nos','count','volume'] },
+  { key: 'cashIn',   label: 'Cash In (Receipt)',      required: false, keywords: ['cash in','receipt','inflow','credit','deposit','received','debit'] },
+  { key: 'cashOut',  label: 'Cash Out (Payment)',     required: false, keywords: ['cash out','payment','outflow','debit','withdraw','credit'] },
+  { key: 'person',   label: 'Customer / Vendor Name', required: false, keywords: ['name','customer','vendor','party','person','client','supplier','account'] },
+  { key: 'uhAmount', label: 'Credit/Debit Amount',     required: false, keywords: ['amount','value','debit','credit','balance','rs','total'] },
+  { key: 'uhType',   label: 'Type (Receivable/Payable)', required: false, keywords: ['type','nature','category','head','kind','receivable','payable'] },
+  { key: 'date',     label: 'Date',                   required: false, keywords: ['date','day','month','time','period'] }
+];
+
+// ═══════════════════════════════════════════════════════
+//  UPLOAD
+// ═══════════════════════════════════════════════════════
+$('csvInput').addEventListener('change', () => handleFile($('csvInput').files[0]));
+$('dropArea').addEventListener('click', () => $('csvInput').click());
+$('dropArea').addEventListener('dragover', e => { e.preventDefault(); $('dropArea').classList.add('dragover'); });
+$('dropArea').addEventListener('dragleave', () => $('dropArea').classList.remove('dragover'));
+$('dropArea').addEventListener('drop', e => {
+  e.preventDefault(); $('dropArea').classList.remove('dragover');
+  const f = e.dataTransfer.files[0]; if (f) { $('csvInput').files = e.dataTransfer.files; handleFile(f); }
+});
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split('\n');
+    if (lines.length < 2) { alert('CSV must have header + data.'); return; }
+    rawRows = lines.map(r => r.split(',').map(c => c.trim()));
+    headers = rawRows[0];
+    $('summarySection').classList.add('hidden');
+    $('analysisSection').classList.add('hidden');
+    buildMapping();
+    $('mappingCard').classList.remove('hidden');
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAPPING
+// ═══════════════════════════════════════════════════════
+function guessCol(h, ...keywords) {
+  const lower = h.map(x => x.trim().toLowerCase());
+  for (const kw of keywords) {
+    const idx = lower.findIndex(x => x === kw || x.includes(kw));
+    if (idx !== -1) return idx;
+  }
+  for (const kw of keywords) {
+    const idx = lower.findIndex(x => x.split(/[\s_\-]/).some(p => p === kw || kw.includes(p)));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function buildMapping() {
+  const grid = $('mappingGrid');
+  grid.innerHTML = '';
+  colMap = {};
+  colStatus = {};
+  let missingList = [];
+
+  FIELD_DEFS.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'mapping-item';
+
+    const dot = document.createElement('span');
+    dot.className = 'status-dot';
+
+    const label = document.createElement('label');
+    label.textContent = f.label + (f.required ? ' *' : '') + ':';
+
+    const sel = document.createElement('select');
+    sel.id = 'f_' + f.key;
+    sel.innerHTML = '<option value="">-- Select --</option>';
+    headers.forEach((h, i) => { sel.innerHTML += `<option value="${i}">${h}</option>`; });
+
+    const idx = guessCol(headers, ...f.keywords);
+    if (idx !== -1) {
+      sel.value = idx;
+      dot.className = 'status-dot ok';
+      colStatus[f.key] = 'found';
+    } else {
+      dot.className = 'status-dot miss';
+      colStatus[f.key] = 'missing';
+      if (f.required) missingList.push(f.label);
+    }
+
+    sel.addEventListener('change', () => {
+      if (sel.value) {
+        dot.className = 'status-dot ok';
+        colStatus[f.key] = 'selected';
+      } else {
+        dot.className = 'status-dot miss';
+        colStatus[f.key] = 'missing';
+      }
+    });
+
+    div.appendChild(dot);
+    div.appendChild(label);
+    div.appendChild(sel);
+    grid.appendChild(div);
+    colMap[f.key] = sel;
+  });
+
+  const alertDiv = $('missingAlert');
+  const missing = FIELD_DEFS.filter(f => !colMap[f.key].value && f.required);
+  if (missing.length) {
+    alertDiv.textContent = 'Required columns missing: ' + missing.map(f => f.label).join(', ') + '. They will be skipped in summary.';
+    alertDiv.classList.remove('hidden');
+  } else {
+    alertDiv.classList.add('hidden');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CALCULATE SUMMARY
+// ═══════════════════════════════════════════════════════
+$('calculateBtn').addEventListener('click', runSummary);
+
+function getColIdx(key) {
+  const sel = colMap[key];
+  return sel && sel.value ? Number(sel.value) : -1;
+}
+
+function hasCol(key) {
+  return getColIdx(key) !== -1;
+}
+
+function runSummary() {
+  const data = rawRows.slice(1).filter(r => r.length > 0);
+
+  // ── Collect raw values per field ──
+  const sIdx = getColIdx('sales');
+  const cIdx = getColIdx('cost');
+  const pIdx = getColIdx('product');
+  const qIdx = getColIdx('quantity');
+  const ciIdx = getColIdx('cashIn');
+  const coIdx = getColIdx('cashOut');
+  const prIdx = getColIdx('person');
+  const uaIdx = getColIdx('uhAmount');
+  const utIdx = getColIdx('uhType');
+  const dIdx = getColIdx('date');
+
+  // ── Section helpers ──
+  function showNotAvail(id) { $(id).innerHTML = '<div class="not-avail">This data not available in sheet. Upload sheet with required columns.</div>'; }
+  function showKpis(id, items) {
+    $(id).innerHTML = '<div class="kpi-mini-grid">' + items.map(i =>
+      `<div class="kpi-mini"><div class="lbl">${i.label}</div><div class="val" style="color:${i.cls || '#1a1a2e'}">${i.val}</div></div>`
+    ).join('') + '</div>';
+  }
+
+  // 1. Gross Sales
+  if (sIdx !== -1) {
+    let total = 0, count = 0;
+    data.forEach(r => { total += parseFloat(r[sIdx]) || 0; count++; });
+    showKpis('salesContent', [
+      { label: 'Gross Sales', val: fmt(total), cls: '#16a34a' },
+      { label: 'Transactions', val: count, cls: '#2563eb' },
+      { label: 'Avg/Transaction', val: count ? fmt(total/count) : '0', cls: '#7c3aed' }
+    ]);
+  } else showNotAvail('salesContent');
+
+  // 2. Expenses
+  if (cIdx !== -1) {
+    let total = 0, count = 0;
+    data.forEach(r => { total += parseFloat(r[cIdx]) || 0; count++; });
+    showKpis('expensesContent', [
+      { label: 'Total Expenses', val: fmt(total), cls: '#dc2626' },
+      { label: 'Entries', val: count, cls: '#2563eb' },
+      { label: 'Avg/Entry', val: count ? fmt(total/count) : '0', cls: '#7c3aed' }
+    ]);
+  } else showNotAvail('expensesContent');
+
+  // 3. Net Profit
+  if (sIdx !== -1 && cIdx !== -1) {
+    let tRev = 0, tCost = 0; let costMissCount = 0;
+    data.forEach(r => {
+      const rev = parseFloat(r[sIdx]) || 0;
+      const rawCost = r[cIdx].trim();
+      const cost = parseFloat(rawCost) || 0;
+      if (rawCost === '' || rawCost === '0' || rawCost === '0.0') costMissCount++;
+      tRev += rev; tCost += cost;
+    });
+    const profit = tRev - tCost;
+    const margin = tRev ? (profit / tRev) * 100 : 0;
+    const pCls = profit >= 0 ? '#16a34a' : '#dc2626';
+    let html = '<div class="kpi-mini-grid">' +
+      `<div class="kpi-mini"><div class="lbl">Revenue</div><div class="val" style="color:#16a34a">${fmt(tRev)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Cost</div><div class="val" style="color:#dc2626">${fmt(tCost)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Net Profit</div><div class="val" style="color:${pCls}">${fmt(profit)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Margin</div><div class="val" style="color:${margin > 20 ? '#16a34a' : margin > 0 ? '#f59e0b' : '#dc2626'}">${margin.toFixed(1)}%</div></div>` +
+      '</div>';
+    if (costMissCount > 0) html += warnBlock(' ' + costMissCount + ' row(s) have missing cost (0). Profit may be overstated.');
+    $('profitContent').innerHTML = html;
+  } else showNotAvail('profitContent');
+
+  // 4. Cost Per Unit
+  if (pIdx !== -1 && cIdx !== -1 && qIdx !== -1) {
+    const pmap = {};
+    data.forEach(r => {
+      const raw = r[pIdx] || 'Unknown';
+      const key = normalizeProduct(raw);
+      const cost = parseFloat(r[cIdx]) || 0;
+      const qty = parseFloat(r[qIdx]) || 0;
+      if (!pmap[key]) pmap[key] = { name: raw, key, cost: 0, qty: 0, variants: {} };
+      pmap[key].cost += cost;
+      pmap[key].qty += qty;
+      pmap[key].variants[raw] = (pmap[key].variants[raw] || 0) + 1;
+    });
+    Object.values(pmap).forEach(p => {
+      p.name = Object.entries(p.variants).sort((a, b) => b[1] - a[1])[0][0];
+    });
+    const list = Object.values(pmap).map(p => ({ ...p, unit: p.qty ? p.cost / p.qty : 0 }));
+    const avg = list.reduce((s, p) => s + p.unit, 0) / (list.length || 1);
+    const topCPU = list.slice(0, 3);
+    let html = '<div class="kpi-mini-grid">' +
+      `<div class="kpi-mini"><div class="lbl">Products</div><div class="val" style="color:#7c3aed">${list.length}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Avg Unit Cost</div><div class="val" style="color:#2563eb">${fmt(avg)}</div></div>` +
+      '</div>';
+    if (topCPU.length) {
+      html += '<div style="margin-top:8px;font-size:13px;">';
+      topCPU.forEach((p, i) => { html += `<span style="display:inline-block;margin:2px 6px 2px 0;background:#eef2ff;padding:3px 10px;border-radius:5px;">#${i+1} ${p.name}: <strong>${fmt(p.unit)}/unit</strong></span>`; });
+      html += '</div>';
+    }
+    $('cpuContent').innerHTML = html;
+  } else showNotAvail('cpuContent');
+
+  // 5. Cash Flow
+  if (ciIdx !== -1 && coIdx !== -1) {
+    let tin = 0, tout = 0, negCount = 0;
+    data.forEach(r => {
+      const co = parseFloat(r[coIdx]) || 0;
+      if (co < 0) negCount++;
+      tin += parseFloat(r[ciIdx]) || 0;
+      tout += co;
+    });
+    const avail = tin - tout;
+    let html = '<div class="kpi-mini-grid">' +
+      `<div class="kpi-mini"><div class="lbl">Cash In</div><div class="val" style="color:#16a34a">${fmt(tin)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Cash Out</div><div class="val" style="color:#dc2626">${fmt(tout)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Available Cash</div><div class="val" style="color:${avail >= 0 ? '#2563eb' : '#dc2626'}">${fmt(avail)}</div></div>` +
+      '</div>';
+    if (negCount > 0) html += warnBlock(' ' + negCount + ' suspicious negative payment(s) detected. Please verify cash out values.');
+    $('cashContent').innerHTML = html;
+  } else showNotAvail('cashContent');
+
+  // 6. Credit / Debt
+  if (prIdx !== -1 && uaIdx !== -1 && utIdx !== -1) {
+    const pmap = {};
+    data.forEach(r => {
+      const name = r[prIdx] || 'Unknown';
+      const amt = parseFloat(r[uaIdx]) || 0;
+      const type = (r[utIdx] || '').trim().toLowerCase();
+      if (!pmap[name]) pmap[name] = { name, rec: 0, pay: 0 };
+      if (type.includes('receivable') || type.includes('debit') || type.includes('give') || type.includes('dena'))
+        pmap[name].rec += amt;
+      else
+        pmap[name].pay += amt;
+    });
+    const list = Object.values(pmap).map(p => ({ ...p, bal: p.rec - p.pay }));
+    const tRec = list.reduce((s, p) => s + p.rec, 0);
+    const tPay = list.reduce((s, p) => s + p.pay, 0);
+    let html = '<div class="kpi-mini-grid">' +
+      `<div class="kpi-mini"><div class="lbl">Receivables</div><div class="val" style="color:#16a34a">${fmt(tRec)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Payables</div><div class="val" style="color:#dc2626">${fmt(tPay)}</div></div>` +
+      `<div class="kpi-mini"><div class="lbl">Net</div><div class="val" style="color:${tRec >= tPay ? '#16a34a' : '#dc2626'}">${fmt(Math.abs(tRec - tPay))}</div></div>` +
+      '</div>';
+    if (list.length > 0) {
+      html += '<div style="overflow-x:auto;margin-top:8px;"><table class="credit-table"><tr><th>#</th><th>Name</th><th>Receivable</th><th>Payable</th><th>Balance</th></tr>';
+      list.slice(0, 10).forEach((p, i) => {
+        html += `<tr><td>${i+1}</td><td><strong>${p.name}</strong></td><td style="color:#16a34a">${p.rec ? fmt(p.rec) : '—'}</td><td style="color:#dc2626">${p.pay ? fmt(p.pay) : '—'}</td><td style="color:${p.bal >= 0 ? '#16a34a' : '#dc2626'};font-weight:600;">${fmt(Math.abs(p.bal))} ${p.bal >= 0 ? '(Recv)' : '(Pay)'}</td></tr>`;
+      });
+      if (list.length > 10) html += `<tr><td colspan="5" style="text-align:center;color:#888;">...and ${list.length - 10} more</td></tr>`;
+      html += '</table></div>';
+    }
+    $('creditContent').innerHTML = html;
+  } else showNotAvail('creditContent');
+
+  // 7. Top & Low
+  if (pIdx !== -1 && sIdx !== -1) {
+    const pmap = {};
+    data.forEach(r => {
+      const raw = r[pIdx] || 'Unknown';
+      const key = normalizeProduct(raw);
+      const sales = parseFloat(r[sIdx]) || 0;
+      if (!pmap[key]) pmap[key] = { name: raw, key, sales: 0, count: 0, variants: {} };
+      pmap[key].sales += sales;
+      pmap[key].count++;
+      pmap[key].variants[raw] = (pmap[key].variants[raw] || 0) + 1;
+    });
+    Object.values(pmap).forEach(p => {
+      p.name = Object.entries(p.variants).sort((a, b) => b[1] - a[1])[0][0];
+    });
+    const list = Object.values(pmap).sort((a, b) => b.sales - a.sales);
+    const top3 = list.slice(0, 3);
+    const bottom3 = list.slice(-3).reverse();
+    let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+    html += '<div><div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#16a34a;"> Top Selling</div>';
+    top3.forEach((p, i) => { html += `<div style="background:#f9fafb;border-radius:6px;padding:8px;margin-bottom:4px;border:1px solid #e5e7eb;"><strong>#${i+1} ${p.name}</strong> — ${fmt(p.sales)}</div>`; });
+    html += '</div><div><div style="font-size:13px;font-weight:600;margin-bottom:6px;color:#dc2626;"> Low Selling</div>';
+    bottom3.forEach((p, i) => { html += `<div style="background:#f9fafb;border-radius:6px;padding:8px;margin-bottom:4px;border:1px solid #e5e7eb;"><strong>#${list.length - bottom3.length + i + 1} ${p.name}</strong> — ${fmt(p.sales)}</div>`; });
+    html += '</div></div>';
+    $('topLowContent').innerHTML = html;
+  } else showNotAvail('topLowContent');
+
+  // ── Duplicate check ──
+  const dupCount = countDuplicates(data);
+  const dupWarning = dupCount > 0 ? warnBlock(' ' + dupCount + ' possible duplicate transaction(s) detected.') : '';
+
+  // ── Show summary section ──
+  $('summarySection').classList.remove('hidden');
+  $('analysisSection').classList.add('hidden');
+
+  // prepend duplicate warning to first visible card
+  const firstCard = $('summarySection').querySelector('.card');
+  if (dupWarning && firstCard) {
+    firstCard.insertAdjacentHTML('afterbegin', dupWarning);
+  }
+
+  $('summarySection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════════════════
+//  DEEP ANALYSIS
+// ═══════════════════════════════════════════════════════
+$('analyzeDeepBtn').addEventListener('click', runDeepAnalysis);
+$('backToSummaryBtn').addEventListener('click', () => {
+  $('analysisSection').classList.add('hidden');
+  $('summarySection').scrollIntoView({ behavior: 'smooth' });
+});
+
+let barChartInst = null, trendChartInst = null;
+
+function runDeepAnalysis() {
+  const data = rawRows.slice(1).filter(r => r.length > 0);
+  const dupCount = countDuplicates(data);
+  const sIdx = getColIdx('sales');
+  const cIdx = getColIdx('cost');
+  const pIdx = getColIdx('product');
+  const dIdx = getColIdx('date');
+
+  // totals
+  let tRev = 0, tCost = 0; let costMissCount = 0; let negCashOutCount = 0;
+  const revSeries = [], dateLabels = [];
+  const prodMap = {};
+
+  data.forEach(r => {
+    const rev = sIdx !== -1 ? (parseFloat(r[sIdx]) || 0) : 0;
+    const rawCost = cIdx !== -1 ? r[cIdx].trim() : '0';
+    const cost = parseFloat(rawCost) || 0;
+    if (rawCost === '' || rawCost === '0' || rawCost === '0.0') costMissCount++;
+    tRev += rev; tCost += cost;
+    revSeries.push(rev);
+    dateLabels.push(dIdx !== -1 && r[dIdx] ? r[dIdx] : 'Row ' + (revSeries.length));
+
+    if (pIdx !== -1) {
+      const raw = r[pIdx] || 'Unknown';
+      const key = normalizeProduct(raw);
+      if (!prodMap[key]) prodMap[key] = { name: raw, key, revenue: 0, cost: 0, count: 0, variants: {} };
+      prodMap[key].revenue += rev;
+      prodMap[key].cost += cost;
+      prodMap[key].count++;
+      prodMap[key].variants[raw] = (prodMap[key].variants[raw] || 0) + 1;
+    }
+
+    // negative cash out check
+    if (getColIdx('cashOut') !== -1) {
+      const co = parseFloat(r[getColIdx('cashOut')]) || 0;
+      if (co < 0) negCashOutCount++;
+    }
+  });
+
+  Object.values(prodMap).forEach(p => {
+    p.name = Object.entries(p.variants).sort((a, b) => b[1] - a[1])[0][0];
+  });
+
+  const profit = tRev - tCost;
+  const margin = tRev ? (profit / tRev) * 100 : 0;
+  const healthScore = calcHealth(tRev, tCost, margin);
+  const breakdown = calcBreakdown(margin, tRev, tCost);
+
+  // Health Score
+  const scCls = healthScore > 70 ? '#16a34a' : healthScore > 40 ? '#f59e0b' : '#dc2626';
+  $('healthScoreArea').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="font-size:36px;font-weight:800;color:${scCls};">${healthScore}/100</div>
+      <div style="flex:1;min-width:200px;">
+        <div class="score-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="font-size:12px;min-width:90px;">Profit Margin</span><div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${breakdown.pmPct}%;background:#2563eb;border-radius:4px;"></div></div><span style="font-size:11px;color:#666;">${breakdown.pm}/50</span></div>
+        <div class="score-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><span style="font-size:12px;min-width:90px;">Cost Efficiency</span><div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${breakdown.cePct}%;background:#7c3aed;border-radius:4px;"></div></div><span style="font-size:11px;color:#666;">${breakdown.ce}/30</span></div>
+        <div class="score-bar" style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;min-width:90px;">Scale Potential</span><div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${breakdown.spPct}%;background:#f59e0b;border-radius:4px;"></div></div><span style="font-size:11px;color:#666;">${breakdown.sp}/20</span></div>
+      </div>
+    </div>
+  `;
+
+  // Charts
+  drawBarChart(tRev, tCost, profit);
+  drawTrendChart(dateLabels, revSeries);
+
+  // Insights
+  const insights = [];
+  if (margin < 15) insights.push({ text: ' Profit margin very low (' + margin.toFixed(1) + '%). Consider pricing or cost cuts.', cls: 'red' });
+  else if (margin < 30) insights.push({ text: ' Margin at ' + margin.toFixed(1) + '% — room for improvement.', cls: 'amber' });
+  else insights.push({ text: ' Healthy margin of ' + margin.toFixed(1) + '%.', cls: 'green' });
+
+  if (tCost > tRev * 0.8) insights.push({ text: ' Costs consume over 80% of revenue — review expenses.', cls: 'red' });
+  else if (tCost > tRev * 0.6) insights.push({ text: ' Costs moderate (60-80%). Keep monitoring.', cls: 'amber' });
+  else insights.push({ text: ' Strong cost efficiency — under 60% of revenue.', cls: 'green' });
+
+  if (profit < 0) insights.push({ text: ' Overall loss detected. Urgent action needed.', cls: 'red' });
+  if (costMissCount > 0) insights.push({ text: ' ' + costMissCount + ' row(s) have missing cost (0). Profit may be inaccurate.', cls: 'red' });
+  if (negCashOutCount > 0) insights.push({ text: ' ' + negCashOutCount + ' suspicious negative cash out value(s) detected.', cls: 'red' });
+  if (dupCount > 0) insights.push({ text: ' ' + dupCount + ' possible duplicate transaction(s) found in data.', cls: 'amber' });
+
+  const prods = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue);
+  if (prods.length > 0) insights.push({ text: ' Top product: "' + prods[0].name + '" — Revenue: ' + fmt(prods[0].revenue), cls: 'green' });
+
+  const lossPrds = prods.filter(p => p.revenue < p.cost);
+  if (lossPrds.length > 0) insights.push({ text: ' ' + lossPrds.length + ' product(s) in loss. Review "' + lossPrds[0].name + '".', cls: 'red' });
+
+  if (healthScore < 40) insights.push({ text: ' Health score critical — systematic review needed.', cls: 'red' });
+  else if (healthScore < 70) insights.push({ text: ' Health score moderate — focus on margin & costs.', cls: 'amber' });
+  else insights.push({ text: ' Strong health score — consider scaling.', cls: 'green' });
+
+  $('analysisInsights').innerHTML = '<ul class="insight-list">' + insights.map(i => `<li class="${i.cls}">${i.text}</li>`).join('') + '</ul>';
+
+  // Products
+  if (pIdx !== -1 && sIdx !== -1) {
+    const sorted = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue);
+    $('analysisProducts').innerHTML = '<div class="product-grid">' + sorted.slice(0, 8).map((p, i) => `
+      <div class="product-item">
+        <div class="rank">#${i+1}</div>
+        <div class="pname">${p.name}</div>
+        <div class="stat">Revenue: ${fmt(p.revenue)}</div>
+        <div class="stat">Cost: ${fmt(p.cost)}</div>
+        <div class="stat">Profit: ${fmt(p.revenue - p.cost)}</div>
+      </div>
+    `).join('') + '</div>';
+  } else {
+    $('analysisProducts').innerHTML = '<div class="not-avail">Product data not available.</div>';
+  }
+
+  // Loss
+  const lossTrans = data.filter(r => (parseFloat(r[sIdx])||0) < (parseFloat(r[cIdx])||0)).length;
+  $('analysisLoss').innerHTML = lossTrans === 0
+    ? '<div style="padding:14px;background:#dcfce7;border-radius:8px;color:#16a34a;font-weight:600;"> No loss-making transactions</div>'
+    : '<div style="padding:14px;background:#fee2e2;border-radius:8px;color:#dc2626;font-weight:600;"> ' + lossTrans + ' loss-making transaction(s). Review pricing.</div>';
+
+  // Table
+  renderTable();
+
+  $('analysisSection').classList.remove('hidden');
+  $('analysisSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
+function calcHealth(rev, cost, margin) {
+  let s = 0;
+  if (margin < 20) s += 20; else if (margin < 40) s += 40; else s += 60;
+  if (cost > rev * 0.8) s += 10; else if (cost > rev * 0.5) s += 25; else s += 40;
+  return Math.min(s, 100);
+}
+
+function calcBreakdown(margin, rev, cost) {
+  const pm = margin < 20 ? 15 : margin < 40 ? 30 : 50;
+  const ce = cost < rev * 0.4 ? 30 : cost < rev * 0.7 ? 20 : 10;
+  const sp = margin > 30 && rev > 0 ? 20 : margin > 10 ? 10 : 5;
+  return { pm, ce, sp, pmPct: (pm/50)*100, cePct: (ce/30)*100, spPct: (sp/20)*100 };
+}
+
+function drawBarChart(rev, cost, profit) {
+  const ctx = $('barChart').getContext('2d');
+  if (barChartInst) barChartInst.destroy();
+  barChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: ['Revenue','Cost','Profit'], datasets: [{ label: 'Amount', data: [rev, cost, profit], backgroundColor: ['#16a34a','#dc2626','#2563eb'] }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+}
+
+function drawTrendChart(labels, data) {
+  const ctx = $('trendChart').getContext('2d');
+  if (trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Sales', data, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.3 }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+
+function renderTable() {
+  const tbl = $('dataTable');
+  tbl.innerHTML = '';
+  rawRows.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    row.forEach(c => { const td = document.createElement(i === 0 ? 'th' : 'td'); td.textContent = c; tr.appendChild(td); });
+    tbl.appendChild(tr);
+  });
+}
+</script>
+</body>
+</html>
