@@ -4,7 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Business Analyzer</title>
+<!-- Google Analytics (GA4) — replace G-XXXXXXXXXX with your Measurement ID -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-JF4KS0YSJ8"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-JF4KS0YSJ8');
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #1a1a2e; }
@@ -167,6 +176,10 @@ tr:hover { background: #f8faff; }
       <button class="btn btn-primary" id="analyzeDeepBtn" style="font-size:16px;padding:14px 40px;"> Analyze Deeply &rarr;</button>
       <p style="margin-top:6px;font-size:12px;color:#888;">Charts, recommendations, health score &amp; more</p>
     </div>
+
+    <div style="text-align:center;margin-top:16px;">
+      <button class="btn btn-outline" id="downloadPdfBtn"> Download PDF Report</button>
+    </div>
   </div>
 
   <!-- ─── DEEP ANALYSIS ─── -->
@@ -206,6 +219,11 @@ tr:hover { background: #f8faff; }
       <div class="table-wrap"><table id="dataTable"></table></div>
     </div>
   </div>
+</div>
+
+<div style="text-align:center;padding:30px 0 10px;">
+  <a href="https://forms.gle/Ak9b9iKiMPwDv9sp7" target="_blank" class="btn btn-outline" style="text-decoration:none;font-size:15px;"> Give Feedback / Request New Features</a>
+  <p style="font-size:11px;color:#aaa;margin-top:6px;">Your input helps improve this tool</p>
 </div>
 
 <script>
@@ -567,6 +585,7 @@ function runSummary() {
 //  DEEP ANALYSIS
 // ═══════════════════════════════════════════════════════
 $('analyzeDeepBtn').addEventListener('click', runDeepAnalysis);
+$('downloadPdfBtn').addEventListener('click', downloadPdf);
 $('backToSummaryBtn').addEventListener('click', () => {
   $('analysisSection').classList.add('hidden');
   $('summarySection').scrollIntoView({ behavior: 'smooth' });
@@ -740,6 +759,120 @@ function renderTable() {
     row.forEach(c => { const td = document.createElement(i === 0 ? 'th' : 'td'); td.textContent = c; tr.appendChild(td); });
     tbl.appendChild(tr);
   });
+}
+
+function downloadPdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageW = 190;
+  let y = 20;
+
+  function addSection(title, lines) {
+    if (!lines || lines.length === 0) return;
+    if (y > 250) { doc.addPage(); y = 20; }
+    y += 4;
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(title, 14, y);
+    y += 8;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(11);
+    lines.forEach(l => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.text(l, 18, y);
+      y += 7;
+    });
+  }
+
+  // Title
+  doc.setFontSize(20);
+  doc.setFont(undefined, 'bold');
+  doc.text('Business Analysis Report', 14, y);
+  y += 8;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text('Generated: ' + new Date().toLocaleString(), 14, y);
+  y += 12;
+
+  // ── Collect data from summary DOM ──
+  function getKpiVals(id) {
+    const cards = $(id)?.querySelectorAll('.kpi-mini');
+    if (!cards || cards.length === 0) return [];
+    return Array.from(cards).map(c => {
+      const label = c.querySelector('.lbl')?.textContent || '';
+      const val = c.querySelector('.val')?.textContent || '';
+      return label + ': ' + val;
+    });
+  }
+
+  function textItems(containerId, selector) {
+    const els = $(containerId)?.querySelectorAll(selector);
+    if (!els || !els.length) return [];
+    return Array.from(els).map(el => el.textContent.trim());
+  }
+
+  addSection('1. Total (Gross) Sales', getKpiVals('salesContent'));
+  addSection('2. Total Expenses', getKpiVals('expensesContent'));
+  addSection('3. Net Profit', getKpiVals('profitContent'));
+
+  // Cost Per Unit
+  const cpuCards = $('cpuContent')?.querySelectorAll('.kpi-mini');
+  let cpuLines = [];
+  if (cpuCards && cpuCards.length) {
+    cpuLines = getKpiVals('cpuContent');
+    const cpuSpans = $('cpuContent')?.querySelectorAll('span[style*="background"]');
+    if (cpuSpans && cpuSpans.length) {
+      Array.from(cpuSpans).forEach(s => cpuLines.push(s.textContent.trim()));
+    }
+  }
+  addSection('4. Cost Per Unit', cpuLines.length ? cpuLines : null);
+
+  addSection('5. Cash Flow', getKpiVals('cashContent'));
+
+  // Credit / Debt
+  const credLines = getKpiVals('creditContent');
+  const credTable = $('creditContent')?.querySelector('.credit-table');
+  if (credTable) {
+    const rows = credTable.querySelectorAll('tr');
+    const entries = [];
+    rows.forEach((tr, idx) => {
+      if (idx === 0) return; // skip header
+      const cells = tr.querySelectorAll('td');
+      if (cells.length >= 5) {
+        entries.push('  ' + (cells[1]?.textContent || '') + ' | Recv: ' + (cells[2]?.textContent || '') + ' | Pay: ' + (cells[3]?.textContent || '') + ' | Bal: ' + (cells[4]?.textContent || ''));
+      }
+    });
+    if (entries.length) {
+      credLines.push('Top entries:');
+      entries.slice(0, 5).forEach(e => credLines.push(e));
+    }
+  }
+  addSection('6. Credit / Debt', credLines.length ? credLines : null);
+
+  // Top & Low
+  const topLowHtml = $('topLowContent')?.innerHTML || '';
+  let topLines = [];
+  if (topLowHtml) {
+    const items = $('topLowContent')?.querySelectorAll('div[style*="border:1px solid #e5e7eb"]');
+    if (items && items.length) {
+      const topSection = items.length > 3 ? items.length / 2 : items.length;
+      topLines.push('Top Selling:');
+      Array.from(items).slice(0, Math.min(3, topSection)).forEach(d => topLines.push('  ' + (d.textContent || '').trim()));
+      if (items.length > 3) {
+        topLines.push('Low Selling:');
+        Array.from(items).slice(-3).forEach(d => topLines.push('  ' + (d.textContent || '').trim()));
+      }
+    }
+  }
+  addSection('7. Top & Low Selling Items', topLines.length ? topLines : null);
+
+  // ── Warnings from the summary ──
+  const warnings = document.querySelectorAll('#summarySection .card > [style*="background:#fef3c7"]');
+  if (warnings.length) {
+    addSection('Warnings', Array.from(warnings).map(w => w.textContent.trim()));
+  }
+
+  doc.save('Business_Report.pdf');
 }
 </script>
 </body>
